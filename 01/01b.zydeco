@@ -1,0 +1,51 @@
+data IntList where
+  | ILNil()
+  | ILCons(Int, IntList)
+
+# Takes in a decreasing list of fixed length and inserts the new
+# value, dropping the smallest element
+
+let rec insert : Int -> IntList -> F(IntList) =
+  fn (new : Int, is: IntList) ->
+  match is
+  | ILNil() -> ret ILNil()
+  | ILCons(old, is) -> (
+  do b <- ! int_gt new old;
+     match b
+     | True() -> (do is <- ! insert old is; ret ILCons(new, is))
+     | False() -> (do is <- ! insert new is; ret ILCons(old, is))
+  )
+;
+
+let rec sum : IntList -> F(Int) =
+  fn (is: IntList) ->
+  match is
+  | ILNil() -> ret 0
+  | ILCons(i, is) -> (do s <- ! sum is; ! add s i);
+
+let rec loop : Bool -> IntList -> Int -> OS =
+  fn (last_one_empty : Bool, best_so_far : IntList, running_total: Int) ->
+  ! read_line { fn (s : String) -> (
+  do b <- ! str_eq s "";
+  match b
+  | False() -> ( # input is a new int
+    do x <- ! str_to_int s;
+    do running_total <- ! add x running_total;
+    ! loop False() best_so_far running_total
+    )
+  | True() -> ( # input is an empty line
+    match last_one_empty
+    | True() -> ( # done
+       do total <- ! sum best_so_far;
+       do s <- ! int_to_str total;
+       ! write_line s { ! exit 0 }
+      )
+    | False() -> ( # finished running_total
+      do best_so_far <- ! insert running_total best_so_far;
+      ! loop True() best_so_far 0
+    )
+  )
+  )
+};
+
+! loop False() ILCons(0, ILCons(0, ILCons(0, ILNil()))) 0

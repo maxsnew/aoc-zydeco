@@ -1,0 +1,72 @@
+let rec loop : Bool -> Int -> Int -> OS =
+  fn (last_one_empty : Bool, best_so_far : Int, running_total: Int) ->
+  ! read_line { fn (s : String) -> (
+  do b <- ! str_eq s "";
+  match b
+  | False() -> ( # input is a new int
+    do x <- ! str_to_int s;
+    do running_total <- ! add x running_total;
+    ! loop False() best_so_far running_total
+    )
+  | True() -> ( # input is an empty line
+    match last_one_empty
+    | True() -> ( # done
+       do s <- ! int_to_str best_so_far;
+       ! write_line s { ! exit 0 }
+      )
+    | False() -> ( # finished running_total
+      do b <- ! int_gt running_total best_so_far;
+      do best_so_far <- (match b | True() -> ret running_total | False() -> ret best_so_far);
+      ! loop True() best_so_far 0
+    )
+  )
+  )
+};
+
+! loop False() 0 0
+
+# data LI where
+#   | LINil()
+#   | LICons(Int, LI)
+
+# data LLI where
+#   | LLINil()
+#   | LLICons(LI, LLI)
+
+# let rec sum : LI -> F(Int) =
+#   fn (is : LI) ->
+#   match is
+#     | LINil() -> ret 0
+#     | LICons(i, is) ->
+#       (do x <- ! sum is;
+#        ! add i x);
+
+# let rec bloop : Int -> LLI -> F(Int) =
+#   fn (best : Int, elves : LLI) ->
+#   match elves
+#   | LLINil() -> ret best
+#   | LLICons(cal_list, elves) -> (
+#     do cals <- ! sum cal_list;
+#     do b    <- ! int_lt cals best;
+#     match b
+#     | True() -> ! bloop best elves
+#     | False() -> ! bloop cals elves
+#     );
+
+# let biggest = {
+#   ! bloop 0
+# };
+
+# let input1 =
+
+
+
+# do x <- ! sum LICons(5, LICons(3, LINil()));
+# do s <- ! int_to_str x;
+#    ! write_line s {
+# do best <- ! biggest LLICons(LICons(14, LINil()), LLICons(LICons(5, LICons(3, LINil())), LLINil()));
+# do s <- ! int_to_str best;
+#    ! write_line s {
+# ! exit 0
+# }}
+
