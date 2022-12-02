@@ -1,0 +1,112 @@
+data Move where
+| Rock()
+| Paper()
+| Scissors()
+
+data Game where
+| Game(Move, Move)
+
+let char_eq = {
+  fn (c1 : Char, c2 : Char) ->
+  do s1 <- ! char_to_str c1;
+  do s2 <- ! char_to_str c2;
+  ! str_eq s1 s2
+};
+
+let ifM = {
+  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(Move)), els: Thunk(Ret(Move))) ->
+  do b <- ! b';
+  match b
+  | True()  -> ! thn
+  | False() -> ! els
+};
+
+let parse_l_move = {
+  fn (c : Char) ->
+  ! ifM { ! char_eq c 'A' }
+        { ret Rock() }
+        { ! ifM { ! char_eq c 'B' }
+                { ret Paper() }
+                { ret Scissors() }}
+};
+
+let parse_r_move = {
+  fn (c : Char) ->
+  ! ifM { ! char_eq c 'X' }
+        { ret Rock() }
+        { ! ifM { ! char_eq c 'Y' }
+                { ret Paper() }
+                { ret Scissors() }}
+};
+
+let parse_game = {
+  fn (s: String) ->
+  do l <- (do l <- ! str_index s 0; ! parse_l_move l);
+  do r <- (do r <- ! str_index s 2; ! parse_r_move r);
+  ret Game(l, r)
+};
+
+let score_move = {
+  fn (move: Move) ->
+  match move
+  | Rock()     -> ret 1
+  | Paper()    -> ret 2
+  | Scissors() -> ret 3
+};
+
+let score_play = {
+  fn (opp: Move, player: Move) ->
+  match opp
+  | Rock()     -> (
+    match player
+    | Rock()     -> ret 3 # draw
+    | Paper()    -> ret 6 # win
+    | Scissors() -> ret 0 # loss
+    )
+  | Paper()    -> (
+    match player
+    | Rock()     -> ret 0 # draw
+    | Paper()    -> ret 3 # win
+    | Scissors() -> ret 6 # loss
+    )
+  | Scissors() -> (
+    match player
+    | Rock()     -> ret 6 # win
+    | Paper()    -> ret 0 # loss
+    | Scissors() -> ret 3 # draw
+    )
+};
+
+let score_game = {
+  fn (g : Game) ->
+  match g
+  | Game(opponent, player) -> (
+    do move_score <- ! score_move player;
+    do wld_score  <- ! score_play opponent player;
+    ! add move_score wld_score
+  )
+};
+
+let rec calc_score : Int -> Thunk(Int -> OS) -> OS =
+   fn (score: Int, k: Thunk(Int -> OS)) ->
+   ! read_line { fn (s: String) ->
+   do done <- ! str_eq "" s;
+   match done
+   | True()  -> ! k score
+   | False() -> (
+     do g <- ! parse_game s;
+     do round <- ! score_game g;
+     do score <- ! add round score;
+     ! calc_score score k
+     )
+   }
+;
+
+! calc_score 0 { fn (score: Int) ->
+  ! write_line "Final Score:" {
+  do s <- ! int_to_str score;
+  ! write_line s {
+  ! exit 0
+  }
+  }
+}
