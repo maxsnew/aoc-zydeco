@@ -1,0 +1,109 @@
+let char_eq = {
+  fn (c1 : Char, c2 : Char) ->
+  do s1 <- ! char_to_str c1;
+  do s2 <- ! char_to_str c2;
+  ! str_eq s1 s2
+};
+
+let ifC = {
+  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(Char)), els: Thunk(Ret(Char))) ->
+  do b <- ! b';
+  match b
+  | True()  -> ! thn
+  | False() -> ! els
+};
+
+let ifI = {
+  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(Int)), els: Thunk(Ret(Int))) ->
+  do b <- ! b';
+  match b
+  | True()  -> ! thn
+  | False() -> ! els
+};
+
+let ifOS = {
+  fn (b' : Thunk(Ret(Bool)), thn : Thunk(OS), els: Thunk(OS)) ->
+  do b <- ! b';
+  match b
+  | True()  -> ! thn
+  | False() -> ! els
+};
+
+# Find the sole character that occurs in all 3 strings
+# String -> String -> String -> Ret(Char)
+let find_match = {
+  fn (s0: String, s1: String, s2: String) ->
+  do l0 <- ! str_length s0;
+  do l1 <- ! str_length s1;
+  do l2 <- ! str_length s2;
+  let rec loop : Int -> Int -> Ret(Char) = (
+    fn (i: Int, j: Int) ->
+    ! ifC { ! int_eq i l0 }
+    { ret '$' } # shouldn't happen
+    { ! ifC { ! int_eq j l1 } # ran out of chars
+        { do i' <- ! add i 1; ! loop i' 0 }
+        { # i and j are in bounds
+          do c0 <- ! str_index s0 i;
+          do c1 <- ! str_index s1 j;
+          ! ifC { ! char_eq c0 c1 }
+          # match found, search the third string
+          { let rec loop' : Int -> Ret(Char) = (
+            fn (k: Int) ->
+            ! ifC { ! int_eq k l2 }
+            # didn't find it
+            { do j' <- ! add 1 j; ! loop i j' }
+            { do c3 <- ! str_index s2 k;
+              ! ifC { ! char_eq c0 c3 }
+              # found it!
+              { ret c0 }
+              { do k' <- ! add 1 k; ! loop' k' }
+            }
+            );
+            ! loop' 0
+          }
+          # otherwise keep looking
+          { do j' <- ! add j 1;
+            ! loop i j' }
+        }
+        }          
+  );
+  ! loop 0 0
+};
+
+let priority = {
+  fn (c: Char) ->
+  do i <- ! char_to_int c;
+  ! ifI { ! int_lt i 91 }
+  # uppercase, subtract code for 'A': 
+  { do ix <- ! sub i 65;
+    ! add ix 27 }
+  # lowercase, 
+  { do ix <- ! sub i 97;
+    ! add ix 1 
+  }
+};
+
+let write_int = {
+  fn (i: Int, done: Thunk(OS)) ->
+  do s <- ! int_to_str i;
+  ! write_line s done
+};
+
+let rec loop : Int -> OS = (
+  fn (sum: Int) ->
+  ! read_line { fn (s0: String) ->
+  ! ifOS { ! str_eq s0 "" }
+  { ! write_int sum { ! exit 0 }}
+  { ! read_line { fn (s1: String) ->
+    ! read_line { fn (s2: String) ->
+    do c <- ! find_match s0 s1 s2;
+    do p <- ! priority c;
+    # ! write_int p {
+    do sum <- ! add p sum;
+    # ! write_int sum {
+      ! loop sum
+    # }
+    # }
+  }}}});
+
+! loop 0
