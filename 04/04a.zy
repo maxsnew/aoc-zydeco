@@ -1,0 +1,131 @@
+# this one is just a parsing problem
+
+data MatchAndCursor where
+| MC(Int, Int)
+
+let ifOS = {
+  fn (b' : Thunk(Ret(Bool)), thn : Thunk(OS), els: Thunk(OS)) ->
+  do b <- ! b';
+  match b
+  | True()  -> ! thn
+  | False() -> ! els
+};
+
+let ifMC = {
+  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(MatchAndCursor)), els: Thunk(Ret(MatchAndCursor))) ->
+  do b <- ! b';
+  match b
+  | True()  -> ! thn
+  | False() -> ! els
+};
+
+let and_ = {
+  fn (b1_: Thunk(Ret(Bool)), b2_: Thunk(Ret(Bool))) ->
+  do b1 <- ! b1_;
+  match b1
+  | True() -> ! b2_
+  | False() -> ret False()
+};
+
+let or_ = {
+  fn (b1_: Thunk(Ret(Bool)), b2_: Thunk(Ret(Bool))) ->
+  do b1 <- ! b1_;
+  match b1
+  | True() -> ret True()
+  | False() -> ! b2_
+};
+
+let int_leq = {
+  fn (i: Int, j: Int) -> ! or_ {! int_lt i j}{! int_eq i j}
+};
+let int_geq = {
+  fn (i: Int, j: Int) -> ! or_ {! int_gt i j}{! int_eq i j}
+};
+
+# chomp_int : String -> Int -> Thunk(Int -> Int -> OS) -> OS
+let chomp_int = {
+  fn (s: String, cursor: Int) ->
+  do len <- ! str_length s;
+  let rec loop : Int -> Int -> Ret(MatchAndCursor) =
+    fn (num: Int, cursor: Int) ->
+    do oob <- ! int_eq cursor len;
+    match oob
+    | True() -> ret MC(num, cursor)
+    | False() -> (
+    do c <- ! str_index s cursor;
+    do code <- ! char_to_int c;
+    ! ifMC { ! and_ { ! int_gt code 47 } { ! int_lt code 58 } }
+    # it is an int
+    { do lsd <- ! sub code 48;
+      do num <- ! mul num 10;
+      do num <- ! add num lsd;
+      do cursor <- ! add cursor 1;
+      ! loop num cursor
+    }
+    # it's not an int
+    { ret MC(num, cursor) }
+    );
+  ! loop 0 cursor
+};
+
+# if the left range is entirely contained within the right
+let contains = {
+  fn (lo0: Int, hi0: Int, lo1: Int, hi1: Int) ->
+  ! and_ { ! int_leq lo0 lo1 } { ! int_geq hi0 hi1 }
+};
+
+let either_contains = {
+  fn (lo0: Int, hi0: Int, lo1: Int, hi1: Int) ->
+  ! or_ { ! contains lo0 hi0 lo1 hi1 } { ! contains lo1 hi1 lo0 hi0 }
+};
+
+let parse_line = {
+  fn (s: String) ->
+  do mc <- ! chomp_int s 0;
+  match mc
+  | MC(lo0, cursor) -> (
+  do cursor <- ! add cursor 1;
+  do mc1 <- ! chomp_int s cursor;
+  match mc1
+  | MC(hi0, cursor) -> (
+  do cursor <- ! add cursor 1;
+  do mc <- ! chomp_int s cursor;
+  match mc
+  | MC(lo1, cursor) -> (
+  do cursor <- ! add cursor 1;
+  do mc <- ! chomp_int s cursor;
+  match mc
+  | MC(hi1, cursor) -> (
+  # a hack to make multiple args more convenient
+  fn (k : Thunk(Int -> Int -> Int -> Int -> OS)) -> ! k lo0 hi0 lo1 hi1)
+  )))
+};
+
+let write_int = {
+  fn (i: Int, done: Thunk(OS)) ->
+  do s <- ! int_to_str i;
+  ! write_line s done
+};
+
+let rec loop: Int -> OS =
+  fn (seen: Int) ->
+  ! read_line { fn (s: String) ->
+  ! ifOS { ! str_eq s "" }
+  { ! write_int seen  { ! exit 0 } }
+  { ! parse_line s { fn (lo0: Int, hi0: Int, lo1: Int, hi1: Int) ->
+    do b <- ! either_contains lo0 hi0 lo1 hi1;
+    do seen <- (match b | True() -> ! add seen 1 | False() -> ret seen);
+    ! loop seen
+  } }
+};
+
+! loop 0
+# ! parse_line "57-93,9-57" {
+#   fn (lo0: Int, hi0: Int, lo1: Int, hi1: Int) ->
+# ! write_int lo0 {
+# ! write_int hi0 {
+# ! write_int lo1 {
+# ! write_int hi1 {
+# ! exit 0
+# }}}}
+# }
