@@ -1,0 +1,335 @@
+# Need to model a fixed length sequence of stacks that get updated
+# repeatedly.
+
+data MatchAndCursor where
+| MC(Int, Int)
+
+data Instr where
+| Instr(Int, # count
+        Int, # from
+        Int  # to
+        )
+
+# With a paucity of data types we can just do this as a list of lists
+# We'll also use "zippers" for updating them
+data Stack where
+| Mt()
+| Push(Char, Stack)
+
+data SeqStacks where
+| Nil()
+| Cons(Stack, SeqStacks)
+
+data PairSS where
+| Pair(Stack, Stack) # left is updated stack, second is output (reversed)
+
+data PairSsS where
+| PairSsS(SeqStacks, Stack)
+
+let error = { let rec error : OS = ( (do x <- ! div 5 0; ! error) ); ! error };
+
+let ifOS = {
+  fn (b' : Thunk(Ret(Bool)), thn : Thunk(OS), els: Thunk(OS)) ->
+  do b <- ! b';
+  match b
+  | True()  -> ! thn
+  | False() -> ! els
+};
+
+let ifMC = {
+  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(MatchAndCursor)), els: Thunk(Ret(MatchAndCursor))) ->
+  do b <- ! b';
+  match b
+  | True()  -> ! thn
+  | False() -> ! els
+};
+
+let write_int = {
+  fn (i: Int, done: Thunk(OS)) ->
+  do s <- ! int_to_str i;
+  ! write_line s done
+};
+
+let and_ = {
+  fn (b1_: Thunk(Ret(Bool)), b2_: Thunk(Ret(Bool))) ->
+  do b1 <- ! b1_;
+  match b1
+  | True() -> ! b2_
+  | False() -> ret False()
+};
+
+# We need to support the operations of
+# 1. popping n elements of a Stack off producing a Kcats and a Stack
+# 2. pushing a Kcats onto a Stack
+# 3. modifying the nth element of a SeqStacks
+
+# popN : Int -> Stack -> Ret(PairSS)
+let popN = {
+  let rec loop : Int -> Stack -> Stack -> Ret(PairSS) = (
+    fn (n: Int, old: Stack, new: Stack) ->
+      do b <- ! int_eq n 0;
+      match b
+      | True() -> ret Pair(old, new)
+      | False() ->
+      (match old
+      | Mt() -> (do x <- ! div 5 0; ! loop n old new) # error
+      | Push(x,old) ->
+      (do n <- ! sub n 1;
+       ! loop n old Push(x, new)))
+  );
+  fn (n: Int, s: Stack) ->
+  ! loop n s Mt()
+};
+
+# For the parsing we need to
+# 1. Identify the number of stacks (implicit in the first line)
+# 2. parse the sequence of stacks
+# 3. parse the commands
+
+# For the main loop,
+# 1. Parse the header into an initial SeqStacks
+# 2. Run each command, updating the current SeqStacks
+# 3. When done, print out the top chars on each stack (presumably non-empty?)
+
+let initialize_stacks = {
+  fn (num_stacks: Int) ->
+  let rec loop : Int -> SeqStacks -> Ret(SeqStacks) = (
+  fn (num_stacks: Int, acc: SeqStacks) ->
+  do b <- ! int_eq num_stacks 0;
+  match b
+  | True() -> ret acc
+  | False() -> (do n <- ! sub num_stacks 1; ! loop n Cons(Mt(), acc))
+  );
+  ! loop num_stacks Nil()
+};
+
+# SeqStacks -> SeqStacks -> Ret(SeqStacks) 
+let rev_append_ss = {
+  let rec loop : SeqStacks -> SeqStacks -> Ret(SeqStacks) = (
+    fn (r_stacks: SeqStacks, acc: SeqStacks) ->
+    match r_stacks
+    | Nil() -> ret acc
+    | Cons(stack, r_stacks) -> ! loop r_stacks Cons(stack, acc) 
+  );
+  ! loop
+};
+
+let reverse_ss = { fn (ss: SeqStacks) -> ! rev_append_ss ss Nil() };
+
+let rev_append_stack = {
+  let rec loop : Stack -> Stack -> Ret(Stack) = (
+    fn (rev_stack: Stack, acc: Stack) ->
+    match rev_stack
+    | Mt() -> ret acc
+    | Push(c, rev_stack) -> ! loop rev_stack Push(c, acc)
+  );
+  ! loop
+};
+
+let rev_stack = { fn (s: Stack) -> ! rev_append_stack s Mt() };
+
+let rev_all = {
+  let rec loop : SeqStacks -> SeqStacks -> Ret(SeqStacks) = (
+    fn (acc: SeqStacks, stacks: SeqStacks) ->
+    match stacks
+    | Nil() -> ! reverse_ss acc
+    | Cons(stack, stacks) ->
+    (do stack <- ! rev_stack stack; ! loop Cons(stack, acc) stacks)
+  );
+  ! loop Nil()
+};
+
+# String -> SeqStacks -> Ret(SeqStacks)
+let push_on_stacks = {
+  fn (s: String, stacks: SeqStacks) -> (
+  let rec loop : Int -> SeqStacks -> Stack -> SeqStacks -> Ret(SeqStacks) = (
+    fn (cursor: Int, pushed: SeqStacks, next: Stack, remaining: SeqStacks) ->
+      do sym <- ! str_index s cursor;
+      do next <- (do b <- ! char_eq sym ' '; match b
+        | True() -> ret next
+        | False() -> ret Push(sym, next));
+      do cursor <- ! add cursor 4;
+      match remaining
+      | Nil() -> ! reverse_ss Cons(next, pushed)
+      | Cons(next', remaining) ->
+      ! loop cursor Cons(next, pushed) next' remaining
+  );
+  match stacks
+  | Nil()               -> (do x <- ! div 5 0; ret stacks) # error
+  | Cons(stack, stacks) -> ! loop 1 Nil() stack stacks
+  )
+};
+
+let write_stack = {
+  fn (stack: Stack, k: U(OS)) ->
+  let rec loop : Stack -> OS = (
+    fn (stack: Stack) ->
+    match stack
+    | Mt() -> ! k
+    | Push(c, stack) ->
+    (do s <- ! char_to_str c;
+    ! write_line s { ! loop stack })
+  );
+  ! loop stack
+};
+
+let write_stacks = {
+  fn (stacks: SeqStacks, k: U(OS)) ->
+  let rec loop : SeqStacks -> OS = (
+    fn (stacks: SeqStacks) ->
+    match stacks
+    | Nil() -> ! k
+    | Cons(stack, stacks) ->
+    ! write_stack stack { ! write_line "DONE" { ! loop stacks }}
+  );
+  ! loop stacks
+};
+
+let top_stacks_to_str = {
+  fn (stacks: SeqStacks) ->
+  let rec loop : SeqStacks -> Ret(String) = (
+    fn (stacks: SeqStacks) ->
+    match stacks
+    | Nil() -> ret ""
+    | Cons(stack, stacks) -> (
+    match stack
+    | Mt() -> ret "___ERROR___"
+    | Push(c, _) -> (
+      do s <- ! char_to_str c;
+      do s' <- ! loop stacks;
+      ! str_append s s'
+    ))
+  );
+  ! loop stacks
+};
+
+let write_top_stacks = {
+  fn (stacks: SeqStacks, k: U(OS)) ->
+  do s <- ! top_stacks_to_str stacks;
+  ! write_line s k
+};
+
+# U(SeqStacks -> OS) -> OS
+let parse_header = {
+  fn (return: U(SeqStacks -> OS)) ->
+  ! read_line { fn (s: String) ->
+  do len <- ! str_length s;
+  do num_stacks <- (do lp1 <- ! add len 1; ! div lp1 4);
+  do mt_stacks <- ! initialize_stacks num_stacks;
+  # parse the inputs
+  let rec parse_pushes : String -> SeqStacks -> OS = (
+    # assume s is valid
+    fn (s: String, stacks: SeqStacks) ->
+    do stacks <- ! push_on_stacks s stacks;
+    ! read_line { fn (s: String) ->
+    do c <- ! str_index s 0;
+    do b <- ! char_eq c '[';
+    match b
+    | True() -> ! parse_pushes s stacks
+    | False() ->
+    (do reved <- ! rev_all stacks; ! return reved)
+    }
+  );
+  ! parse_pushes s mt_stacks
+  }
+};
+
+
+# modify : U(Stack -> Ret(PairSS)) -> Int -> SeqStacks -> Ret(StackSsS)
+let modify = {
+  fn (f: Thunk(Stack -> Ret(PairSS)), i: Int, ss: SeqStacks) ->
+  let rec loop : Int -> SeqStacks -> Stack -> SeqStacks -> Ret(PairSsS) = (
+    fn (i: Int, left: SeqStacks, cur: Stack, right: SeqStacks) ->
+    do b <- ! int_eq i 1;
+    match b
+    | False() -> (
+      match right
+      | Nil() -> (do _ <- ! div 1 0; ! loop i left cur right)
+      | Cons(next, right) -> (do i <- ! sub i 1; ! loop i Cons(cur, left) next right)
+    )
+    | True() -> (
+      do p <- ! f cur;
+      match p
+      | Pair(cur, output) ->
+      (do seq <- ! rev_append_ss left Cons(cur, right);
+      ret PairSsS(seq, output))
+    )
+  );
+  match ss
+  | Nil() -> (do _ <- ! div 0 0; ret PairSsS(Nil(), Mt()))
+  | Cons(cur, right) -> ! loop i Nil() cur right
+};
+
+# chomp_int : String -> Int -> Ret(MC)
+let chomp_int = {
+  fn (s: String, cursor: Int) ->
+  do len <- ! str_length s;
+  let rec loop : Int -> Int -> Ret(MatchAndCursor) =
+    fn (num: Int, cursor: Int) ->
+    do oob <- ! int_eq cursor len;
+    match oob
+    | True() -> ret MC(num, cursor)
+    | False() -> (
+    do c <- ! str_index s cursor;
+    do code <- ! char_to_int c;
+    ! ifMC { ! and_ { ! int_gt code 47 } { ! int_lt code 58 } }
+    # it is an int
+    { do lsd <- ! sub code 48;
+      do num <- ! mul num 10;
+      do num <- ! add num lsd;
+      do cursor <- ! add cursor 1;
+      ! loop num cursor
+    }
+    # it's not an int
+    { ret MC(num, cursor) }
+    );
+  ! loop 0 cursor
+};
+
+# parse_line : String -> Ret(MC)
+let parse_line = {
+  fn (s: String) ->
+  let i = 5;
+  do mc <- ! chomp_int s i; match mc | MC(count, i) -> (
+  do i <- ! add i 6;
+  do mc <- ! chomp_int s i; match mc | MC(from, i) -> (
+  do i <- ! add  i 4;
+  do mc <- ! chomp_int s i; match mc | MC(to, i) -> (
+  ret Instr(count, from, to)
+  )))
+};
+
+let rec eval_instrs : SeqStacks -> OS = (
+  fn (ss: SeqStacks) ->
+  ! read_line { fn (s: String) -> (
+  ! ifOS { ! str_eq s "" }
+  { ! write_top_stacks ss { ! exit 0 } }
+  { do instr <- ! parse_line s; match instr | Instr(count, from, to) -> (
+    # move `count` from `from` to `to`
+    do p <- ! modify { ! popN count } from ss; match p | PairSsS(ss, popped) -> (
+    let pushPopped = { fn (s: Stack) ->
+      # comment out this line to implement 05b    
+      do popped <- ! rev_stack popped;
+      do s <- ! rev_append_stack popped s;
+      ret Pair(s, Mt())
+    };
+    do p <- ! modify pushPopped to ss; match p | PairSsS(ss, _) -> (
+    ! eval_instrs ss
+    )
+  ))}
+  )}
+);
+
+! parse_header { fn (stacks: SeqStacks) ->
+! write_stacks stacks {
+! read_line { fn (_ : String) ->
+! eval_instrs stacks
+}}}
+
+# ! write_stacks Nil() { ! exit 0 }
+
+# TODO:
+# 1. parsing move command
+# 2. popping n args
+# 3. rev_append
+# 4. Modifying the nth stack
