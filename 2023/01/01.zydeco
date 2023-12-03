@@ -1,0 +1,58 @@
+def fn char_to_digit (c : Char) : F (Option Int) =
+  do ascii <- !char_to_int c;
+  !if~ @(F (Option Int))
+       { !and~ {! int_lt 47 ascii }
+               {! int_lt ascii 58 } }
+       { do n <- ! sub ascii 48; ret Some(n) }
+       { ret None() }
+end
+
+def fn digits_to_int : U(LList Int) -> F(Int) =
+  ! foldl' @(Int) @(Int)
+           { fn d acc ->
+             do acc <- ! mul acc 10;
+             ! add acc d }
+           0
+end
+
+def fn first (xs: List Int) (default : Int) : Ret Int =
+  ! match_list @(Int) @(Ret Int) xs { ret default } {fn x _ -> ret x }
+end
+
+def fn last (xs: List Int) (default : Int) : Ret Int =
+  ! foldl @(Int) @(Int) xs
+    {fn new old -> ret new}
+    default
+end
+
+def fn extract_val (s : String) : F(Int) =
+    do ds <- ! ll_to_list @(Int) { ! filterMap @(Char) @(Int) char_to_digit { ! str_to_list s }};
+    do tens <- ! first ds -1;
+    do tens <- ! mul tens 10;
+    do ones <- ! last ds -1;
+    ! add tens ones
+end
+
+def rec fn loop (acc : Int) : OS =
+  ! read_line { fn s ->
+    ! if~ @(OS)
+          {! str_eq s "" }
+          {do s <- ! int_to_str acc;
+          ! write_str "final answer: " {
+          ! write_line s { ! exit 0 } }}
+          {
+            # ! write_line s {
+            do new_val <- ! extract_val s;
+            do acc <- ! add new_val acc;
+            do s <- ! int_to_str acc;
+            # ! write_line s {
+            ! loop acc
+            # }
+            # }
+          }
+  }
+end
+
+main
+  ! loop 0
+end
