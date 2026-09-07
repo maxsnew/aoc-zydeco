@@ -1,112 +1,105 @@
-data Move where
-| Rock()
-| Paper()
-| Scissors()
+-- Day 2, part a: total score of a rock-paper-scissors tournament.
+-- Each line holds the opponent's move (A, B, C) and our move (X, Y, Z).
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/Thk; /Ret; /Unit) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/Char) = representations/char that
+  let (/OS) = system that
+  let (/bool; /option; /int64; /process; /read_line; /write_int; /char_eq; /char_at) =
+    builtin |> make_aoc
+  that
 
-data Game where
-| Game(Move, Move)
+  def Move =
+    data
+    | +Rock : Unit
+    | +Paper : Unit
+    | +Scissors : Unit
+    end
+  that
 
-let char_eq = {
-  fn (c1 : Char, c2 : Char) ->
-  do s1 <- ! char_to_str c1;
-  do s2 <- ! char_to_str c2;
-  ! str_eq s1 s2
-};
+  def Game =
+    data
+    | +Game : Move * Move
+    end
+  that
 
-let ifM = {
-  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(Move)), els: Thunk(Ret(Move))) ->
-  do b <- ! b';
-  match b
-  | True()  -> ! thn
-  | False() -> ! els
-};
+  -- Decode a move given the letters standing for rock and paper;
+  -- any other letter is scissors.
+  let ! parse_move (c : Char) (rock : Char) (paper : Char) : Ret Move =
+    do is_rock <- ! char_eq c rock;
+    ! bool/if (Ret Move) is_rock
+      { ret +Rock() }
+      {
+        do is_paper <- ! char_eq c paper;
+        ! bool/if (Ret Move) is_paper { ret +Paper() } { ret +Scissors() }
+      }
+  that
 
-let parse_l_move = {
-  fn (c : Char) ->
-  ! ifM { ! char_eq c 'A' }
-        { ret Rock() }
-        { ! ifM { ! char_eq c 'B' }
-                { ret Paper() }
-                { ret Scissors() }}
-};
+  let ! parse_game (text : String) : Ret Game =
+    do l <- ! char_at text 0;
+    do opponent <- ! parse_move l 'A' 'B';
+    do r <- ! char_at text 2;
+    do player <- ! parse_move r 'X' 'Y';
+    ret +Game(opponent, player)
+  that
 
-let parse_r_move = {
-  fn (c : Char) ->
-  ! ifM { ! char_eq c 'X' }
-        { ret Rock() }
-        { ! ifM { ! char_eq c 'Y' }
-                { ret Paper() }
-                { ret Scissors() }}
-};
+  let ! score_move (move : Move) : Ret Int64 =
+    match move
+    | +Rock() => ret 1
+    | +Paper() => ret 2
+    | +Scissors() => ret 3
+    end
+  that
 
-let parse_game = {
-  fn (s: String) ->
-  do l <- (do l <- ! str_index s 0; ! parse_l_move l);
-  do r <- (do r <- ! str_index s 2; ! parse_r_move r);
-  ret Game(l, r)
-};
+  let ! score_play (opponent : Move) (player : Move) : Ret Int64 =
+    match opponent
+    | +Rock() =>
+      match player
+      | +Rock() => ret 3     -- draw
+      | +Paper() => ret 6    -- win
+      | +Scissors() => ret 0 -- loss
+      end
+    | +Paper() =>
+      match player
+      | +Rock() => ret 0     -- loss
+      | +Paper() => ret 3    -- draw
+      | +Scissors() => ret 6 -- win
+      end
+    | +Scissors() =>
+      match player
+      | +Rock() => ret 6     -- win
+      | +Paper() => ret 0    -- loss
+      | +Scissors() => ret 3 -- draw
+      end
+    end
+  that
 
-let score_move = {
-  fn (move: Move) ->
-  match move
-  | Rock()     -> ret 1
-  | Paper()    -> ret 2
-  | Scissors() -> ret 3
-};
+  let ! score_game (game : Game) : Ret Int64 =
+    match game
+    | +Game(opponent, player) =>
+      do move_score <- ! score_move player;
+      do outcome_score <- ! score_play opponent player;
+      ! int64/add move_score outcome_score
+    end
+  that
 
-let score_play = {
-  fn (opp: Move, player: Move) ->
-  match opp
-  | Rock()     -> (
-    match player
-    | Rock()     -> ret 3 # draw
-    | Paper()    -> ret 6 # win
-    | Scissors() -> ret 0 # loss
-    )
-  | Paper()    -> (
-    match player
-    | Rock()     -> ret 0 # draw
-    | Paper()    -> ret 3 # win
-    | Scissors() -> ret 6 # loss
-    )
-  | Scissors() -> (
-    match player
-    | Rock()     -> ret 6 # win
-    | Paper()    -> ret 0 # loss
-    | Scissors() -> ret 3 # draw
-    )
-};
+  let fix calc_score (score : Int64) (k : Thk (Int64 -> OS)) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          { ! k score }
+          {
+            fn text =>
+              do game <- ! parse_game text;
+              do round <- ! score_game game;
+              do score <- ! int64/add round score;
+              ! calc_score score k
+          }
+    }
+  that
 
-let score_game = {
-  fn (g : Game) ->
-  match g
-  | Game(opponent, player) -> (
-    do move_score <- ! score_move player;
-    do wld_score  <- ! score_play opponent player;
-    ! add move_score wld_score
-  )
-};
-
-let rec calc_score : Int -> Thunk(Int -> OS) -> OS =
-   fn (score: Int, k: Thunk(Int -> OS)) ->
-   ! read_line { fn (s: String) ->
-   do done <- ! str_eq "" s;
-   match done
-   | True()  -> ! k score
-   | False() -> (
-     do g <- ! parse_game s;
-     do round <- ! score_game g;
-     do score <- ! add round score;
-     ! calc_score score k
-     )
-   }
-;
-
-! calc_score 0 { fn (score: Int) ->
-  ! write_line "Final Score:" {
-  do s <- ! int_to_str score;
-  ! write_line s {
-  ! exit 0
-  }
-  }
-}
+  ! calc_score 0 { fn score => ! write_int score { ! process/exit 0 } }
+end

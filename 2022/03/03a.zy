@@ -1,98 +1,79 @@
-let char_eq = {
-  fn (c1 : Char, c2 : Char) ->
-  do s1 <- ! char_to_str c1;
-  do s2 <- ! char_to_str c2;
-  ! str_eq s1 s2
-};
+-- Day 3, part a: the sum of the priorities of the item type that appears in
+-- both halves of each rucksack.
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/Ret) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/Char) = representations/char that
+  let (/OS) = system that
+  let (/bool; /option; /string; /char; /int64; /process; /read_line; /write_int; /char_eq; /char_at) =
+    builtin |> make_aoc
+  that
 
-let ifC = {
-  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(Char)), els: Thunk(Ret(Char))) ->
-  do b <- ! b';
-  match b
-  | True()  -> ! thn
-  | False() -> ! els
-};
-
-let ifI = {
-  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(Int)), els: Thunk(Ret(Int))) ->
-  do b <- ! b';
-  match b
-  | True()  -> ! thn
-  | False() -> ! els
-};
-
-let ifOS = {
-  fn (b' : Thunk(Ret(Bool)), thn : Thunk(OS), els: Thunk(OS)) ->
-  do b <- ! b';
-  match b
-  | True()  -> ! thn
-  | False() -> ! els
-};
-
-
-# String -> Ret(Char)
-let find_match = {
-  fn (s: String) ->
-  do l <- ! str_length s;
-  do lDiv2 <- ! div l 2;
-  # for i, j in 0..lDiv2 - 1
-  (let rec loop : Int -> Int -> Ret(Char) = (
-    fn (i: Int, j: Int) ->
-      # if i is past, done
-      ! ifC { ! int_eq i lDiv2}
-      { ret '$' }
-      { ! ifC { ! int_eq j lDiv2}
-        { do i' <- ! add i 1;
-          ! loop i' 0 }
-        { # i and j are in bounds
-          do ci <- ! str_index s i;
-          do j' <- ! add j lDiv2;
-          do cj <- ! str_index s j';
-          ! ifC { ! char_eq ci cj }
-          { ret ci }
-          { do j' <- ! add j 1;
-            ! loop i j' }
+  -- The character occurring in both halves of `text`; '$' if there is none.
+  let ! find_match (text : String) : Ret Char =
+    do length <- ! string/length text;
+    do half <- ! int64/div length 2;
+    -- compare position i of the first half with position j of the second
+    let fix loop (i : Int64) (j : Int64) : Ret Char =
+      do i_done <- ! int64/eq i half;
+      ! bool/if (Ret Char) i_done
+        { ret '$' }
+        {
+          do j_done <- ! int64/eq j half;
+          ! bool/if (Ret Char) j_done
+            {
+              do i <- ! int64/add i 1;
+              ! loop i 0
+            }
+            {
+              do ci <- ! char_at text i;
+              do j' <- ! int64/add j half;
+              do cj <- ! char_at text j';
+              do same <- ! char_eq ci cj;
+              ! bool/if (Ret Char) same
+                { ret ci }
+                {
+                  do j <- ! int64/add j 1;
+                  ! loop i j
+                }
+            }
         }
-        }
-  );
-  ! loop 0 0
-  )
-};
+    in
+    ! loop 0 0
+  that
 
-let priority = {
-  fn (c: Char) ->
-  do i <- ! char_to_int c;
-  ! ifI { ! int_lt i 91 }
-  # uppercase, subtract code for 'A': 
-  { do ix <- ! sub i 65;
-    ! add ix 27 }
-  # lowercase, 
-  { do ix <- ! sub i 97;
-    ! add ix 1 
-  }
-};
+  -- a..z score 1..26 and A..Z score 27..52
+  let ! priority (c : Char) : Ret Int64 =
+    do code <- ! char/codepoint c;
+    do uppercase <- ! int64/lt code 91;
+    ! bool/if (Ret Int64) uppercase
+      {
+        do offset <- ! int64/sub code 65;
+        ! int64/add offset 27
+      }
+      {
+        do offset <- ! int64/sub code 97;
+        ! int64/add offset 1
+      }
+  that
 
-let write_int = {
-  fn (i: Int, done: Thunk(OS)) ->
-  do s <- ! int_to_str i;
-  ! write_line s done
-};
+  let fix loop (sum : Int64) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          { ! write_int sum { ! process/exit 0 } }
+          {
+            fn text =>
+              do c <- ! find_match text;
+              do p <- ! priority c;
+              do sum <- ! int64/add sum p;
+              ! loop sum
+          }
+    }
+  that
 
-let rec loop : Int -> OS = (
-  fn (sum: Int) ->
-  ! read_line { fn (s: String) ->
-  ! ifOS { ! str_eq s "" }
-  { ! write_int sum { ! exit 0 }}
-  { do c <- ! find_match s;
-    do p <- ! priority c;
-    # ! write_int p {
-    do sum <- ! add p sum;
-    # ! write_int sum {
-      ! loop sum
-    # }
-    # }
-  }
-  }
-);
-
-! loop 0
+  ! loop 0
+end

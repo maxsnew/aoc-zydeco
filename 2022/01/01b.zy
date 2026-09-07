@@ -1,0 +1,69 @@
+-- Day 1, part b: the calories carried by the three best-supplied elves together.
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/Ret) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/OS) = system that
+  let (/List; /bool; /option; /list; /string; /int64; /process; /read_line; /write_int; /expect_int) =
+    builtin |> make_aoc
+  that
+
+  -- Insert into a descending list of fixed length, dropping the smallest element.
+  let fix insert (new : Int64) (best : List Int64) : Ret (List Int64) =
+    ! list/case Int64 (Ret (List Int64)) best
+      { ! list/nil Int64 }
+      {
+        fn old rest =>
+          do greater <- ! int64/gt new old;
+          ! bool/if (Ret (List Int64)) greater
+            {
+              do rest <- ! insert old rest;
+              ! list/cons Int64 new rest
+            }
+            {
+              do rest <- ! insert new rest;
+              ! list/cons Int64 old rest
+            }
+      }
+  that
+
+  let ! sum (values : List Int64) : Ret Int64 =
+    ! list/fold_left Int64 Int64 values 0 { fn total value => ! int64/add total value }
+  that
+
+  let fix loop (best : List Int64) (running : Int64) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          {
+            do best <- ! insert running best;
+            do total <- ! sum best;
+            ! write_int total { ! process/exit 0 }
+          }
+          {
+            fn text =>
+              do blank <- ! string/is_empty text;
+              ! bool/if OS blank
+                {
+                  do best <- ! insert running best;
+                  ! loop best 0
+                }
+                {
+                  ! expect_int text {
+                    fn calories =>
+                      do running <- ! int64/add running calories;
+                      ! loop best running
+                  }
+                }
+          }
+    }
+  that
+
+  do empty <- ! list/nil Int64;
+  do one <- ! list/cons Int64 0 empty;
+  do two <- ! list/cons Int64 0 one;
+  do three <- ! list/cons Int64 0 two;
+  ! loop three 0
+end

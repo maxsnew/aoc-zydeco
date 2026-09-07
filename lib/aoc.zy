@@ -1,0 +1,94 @@
+-- Shared helpers for the Advent of Code solutions.
+--
+-- Applied to the host's Builtin package, this returns the parts of the
+-- standard library the solutions use together with a few input/output
+-- conveniences.  Standard input is treated as a stream of lines whose end is
+-- an explicit `None`, so no sentinel empty line is needed.
+begin
+  param val (/core; /representations; /system; builtin) : @(import("builtin.zy")) that
+  let make_std = @(import("../../impl/lib/std/std.zy")) that
+  let (/VType; /CType; /Thk; /Ret) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/Char) = representations/char that
+  let (/OS) = system that
+  let std = builtin |> make_std that
+  let (
+    /Bool; /List; /Option; /IoError;
+    /bool; /list; /option; /result; /string; /char; /int64; /io; /stdio; /process
+  ) = std that
+
+  -- Read one line of standard input; `None` at end of file.
+  -- An I/O error is reported on standard error and treated as end of file.
+  let ! read_line (k : Thk (Option String -> OS)) : OS =
+    ! stdio/read_line {
+      fn read =>
+        ! result/fold (Option String) IoError OS read
+          { fn line => ! k line }
+          {
+            fn error =>
+              do message <- ! io/error_message error;
+              ! stdio/write_error_line message {
+                fn _ =>
+                  do absent <- ! option/none String;
+                  ! k absent
+              }
+          }
+    }
+  that
+
+  -- Read standard input to end of file, passing the lines in order.
+  let fix read_lines_rev (acc : List String) (k : Thk (List String -> OS)) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          { do lines <- ! list/reverse String acc; ! k lines }
+          { fn text => do acc <- ! list/cons String text acc; ! read_lines_rev acc k }
+    }
+  that
+  let ! read_lines (k : Thk (List String -> OS)) : OS =
+    do empty <- ! list/nil String;
+    ! read_lines_rev empty k
+  that
+
+  let ! write_line (text : String) (k : Thk OS) : OS =
+    ! stdio/write_line text { fn _ => ! k }
+  that
+  let ! write_int (value : Int64) (k : Thk OS) : OS =
+    do text <- ! int64/to_string value;
+    ! write_line text k
+  that
+
+  let ! char_eq (left : Char) (right : Char) : Ret Bool =
+    do l <- ! char/codepoint left;
+    do r <- ! char/codepoint right;
+    ! int64/eq l r
+  that
+
+  -- The character at a zero-based position, or a space when out of range.
+  -- The puzzle inputs treat a missing character and a blank alike.
+  let ! char_at (text : String) (index : Int64) : Ret Char =
+    do found <- ! string/get text index;
+    ! option/unwrap_or Char found ' '
+  that
+
+  -- Parse a decimal integer, aborting the program on malformed input.
+  let ! expect_int (text : String) (k : Thk (Int64 -> OS)) : OS =
+    do parsed <- ! string/parse_int text;
+    ! option/fold Int64 OS parsed
+      {
+        do message <- ! string/append "not an integer: " text;
+        ! process/panic message
+      }
+      { fn value => ! k value }
+  that
+
+  pack
+      (= Bool as Bool : VType)
+      (= Option as Option : VType -> VType)
+      (= List : VType -> VType) is List
+  where
+    (= bool, = option, = list, = string, = char, = int64, = process),
+    (= read_line, = read_lines, = write_line, = write_int, = char_eq, = char_at, = expect_int)
+  end
+end

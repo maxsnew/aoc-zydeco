@@ -1,0 +1,65 @@
+-- 2023, day 1, part a: each line's calibration value is its first digit
+-- followed by its last digit; print the sum.
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/Ret) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/Char) = representations/char that
+  let (/OS) = system that
+  let (/List; /bool; /option; /list; /string; /char; /int64; /process; /read_line; /write_int) =
+    builtin |> make_aoc
+  that
+
+  -- The digits in `text`, in order.
+  let ! digits (text : String) : Ret (List Int64) =
+    do chars <- ! string/to_chars text;
+    ! list/fold Char (Ret (List Int64)) chars
+      { ! list/nil Int64 }
+      {
+        fn c rest =>
+          do rest <- ! rest;
+          do code <- ! char/codepoint c;
+          do after_slash <- ! int64/gt code 47;
+          do before_colon <- ! int64/lt code 58;
+          do is_digit <- ! bool/and after_slash before_colon;
+          ! bool/if (Ret (List Int64)) is_digit
+            {
+              do digit <- ! int64/sub code 48;
+              ! list/cons Int64 digit rest
+            }
+            { ret rest }
+      }
+  that
+
+  -- Ten times the first digit plus the last digit; 0 for a line without digits.
+  let ! calibration (text : String) : Ret Int64 =
+    do ds <- ! digits text;
+    do first <- ! list/head Int64 ds;
+    ! option/fold Int64 (Ret Int64) first
+      { ret 0 }
+      {
+        fn tens =>
+          do ones <- ! list/fold_left Int64 Int64 ds tens { fn _ digit => ret digit };
+          do tens <- ! int64/mul tens 10;
+          ! int64/add tens ones
+      }
+  that
+
+  let fix loop (total : Int64) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          { ! write_int total { ! process/exit 0 } }
+          {
+            fn text =>
+              do value <- ! calibration text;
+              do total <- ! int64/add total value;
+              ! loop total
+          }
+    }
+  that
+
+  ! loop 0
+end

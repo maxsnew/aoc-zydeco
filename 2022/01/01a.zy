@@ -1,0 +1,42 @@
+-- Day 1, part a: the most calories carried by a single elf.
+-- Each elf's items are listed one per line; elves are separated by blank lines.
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/OS) = system that
+  let (/bool; /option; /string; /int64; /process; /read_line; /write_int; /expect_int) =
+    builtin |> make_aoc
+  that
+
+  let fix loop (best : Int64) (running : Int64) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          {
+            -- end of input: the last elf's total counts too
+            do best <- ! int64/max best running;
+            ! write_int best { ! process/exit 0 }
+          }
+          {
+            fn text =>
+              do blank <- ! string/is_empty text;
+              ! bool/if OS blank
+                {
+                  do best <- ! int64/max best running;
+                  ! loop best 0
+                }
+                {
+                  ! expect_int text {
+                    fn calories =>
+                      do running <- ! int64/add running calories;
+                      ! loop best running
+                  }
+                }
+          }
+    }
+  that
+
+  ! loop 0 0
+end

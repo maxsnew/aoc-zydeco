@@ -1,0 +1,48 @@
+-- Day 7: unfinished.  So far only the input is modelled, as a stream of lines
+-- whose tail is read on demand.  Running it prints the number of lines.
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/VType; /Thk; /Unit) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/OS) = system that
+  let (/option; /int64; /process; /read_line; /write_int) = builtin |> make_aoc that
+
+  -- A line together with the reader for the lines after it.
+  def Lines : VType =
+    data
+    | +EOF : Unit
+    | +Line : String * Thk (Thk (Lines -> OS) -> OS)
+    end
+  that
+
+  let fix lines (k : Thk (Lines -> OS)) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          { ! k +EOF() }
+          { fn text => ! k +Line(text, lines) }
+    }
+  that
+
+  -- TODO: the filesystem
+  --
+  -- def FileTree = data
+  --   | +File : Int64 * String     -- size, name
+  --   | +Dir : List FileTree * String
+  --   end
+  --
+  -- for fun, let's implement the zipper using codata
+
+  let fix count (n : Int64) (stream : Lines) : OS =
+    match stream
+    | +EOF() => ! write_int n { ! process/exit 0 }
+    | +Line(_, next) =>
+      do n <- ! int64/add n 1;
+      ! next { fn stream => ! count n stream }
+    end
+  that
+
+  ! lines { fn stream => ! count 0 stream }
+end

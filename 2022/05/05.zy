@@ -1,0 +1,270 @@
+-- Day 5: a crane rearranges crates between stacks.
+--
+-- The input starts with a drawing of the stacks, a line numbering them, and
+-- a blank line; then come instructions "move N from A to B".  Part a moves
+-- crates one at a time, so each batch arrives reversed; part b moves a batch
+-- as a whole.  Both simulations run side by side on the single pass over
+-- the input, and the crates on top of each stack are printed, part a first.
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/Thk; /Ret) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/Char) = representations/char that
+  let (/OS) = system that
+  let (
+    /Bool; /List; /bool; /option; /list; /string; /char; /int64; /process;
+    /read_line; /write_line; /char_eq; /char_at
+  ) =
+    builtin |> make_aoc
+  that
+
+  -- A stack lists its crates top first.
+  let Stack = List Char that
+  let Stacks = List Stack that
+
+  def Instruction =
+    data
+    | +Move : Int64 * Int64 * Int64 -- count, from, to (stacks are numbered from 1)
+    end
+  that
+
+  -- Parsing --------------------------------------------------------------
+
+  -- Read the decimal number starting at `start`, returning it together with
+  -- the position just after it.
+  let ! chomp_int (text : String) (start : Int64) : Ret (Int64 * Int64) =
+    do length <- ! string/length text;
+    let fix loop (num : Int64) (cursor : Int64) : Ret (Int64 * Int64) =
+      do at_end <- ! int64/eq cursor length;
+      ! bool/if (Ret (Int64 * Int64)) at_end
+        { ret (num, cursor) }
+        {
+          do c <- ! char_at text cursor;
+          do code <- ! char/codepoint c;
+          do after_slash <- ! int64/gt code 47;
+          do before_colon <- ! int64/lt code 58;
+          do is_digit <- ! bool/and after_slash before_colon;
+          ! bool/if (Ret (Int64 * Int64)) is_digit
+            {
+              do digit <- ! int64/sub code 48;
+              do num <- ! int64/mul num 10;
+              do num <- ! int64/add num digit;
+              do cursor <- ! int64/add cursor 1;
+              ! loop num cursor
+            }
+            { ret (num, cursor) }
+        }
+    in
+    ! loop 0 start
+  that
+
+  -- "move N from A to B"
+  let ! parse_instruction (text : String) : Ret Instruction =
+    do (count, cursor) <- ! chomp_int text 5;
+    do cursor <- ! int64/add cursor 6;
+    do (from, cursor) <- ! chomp_int text cursor;
+    do cursor <- ! int64/add cursor 4;
+    do (to, _) <- ! chomp_int text cursor;
+    ret +Move(count, from, to)
+  that
+
+  let fix empty_stacks (count : Int64) : Ret Stacks =
+    do done <- ! int64/eq count 0;
+    ! bool/if (Ret Stacks) done
+      { ! list/nil Stack }
+      {
+        do count <- ! int64/sub count 1;
+        do rest <- ! empty_stacks count;
+        do empty <- ! list/nil Char;
+        ! list/cons Stack empty rest
+      }
+  that
+
+  -- Add one row of the drawing: the crate for stack i sits at column 1 + 4i.
+  -- Rows are read top down, so each crate is pushed *below* the ones already
+  -- seen; the stacks are reversed once the drawing is complete.
+  let fix push_row (text : String) (cursor : Int64) (stacks : Stacks) : Ret Stacks =
+    ! list/case Stack (Ret Stacks) stacks
+      { ! list/nil Stack }
+      {
+        fn stack rest =>
+          do symbol <- ! char_at text cursor;
+          do blank <- ! char_eq symbol ' ';
+          do stack <- ! bool/if (Ret Stack) blank { ret stack } { ! list/cons Char symbol stack };
+          do cursor <- ! int64/add cursor 4;
+          do rest <- ! push_row text cursor rest;
+          ! list/cons Stack stack rest
+      }
+  that
+
+  let ! reverse_all (stacks : Stacks) : Ret Stacks =
+    ! list/map Stack Stack stacks { fn stack => ! list/reverse Char stack }
+  that
+
+  -- Read the drawing up to and including the numbering line.
+  let ! parse_header (k : Thk (Stacks -> OS)) : OS =
+    ! read_line {
+      fn first =>
+        ! option/fold String OS first
+          { ! process/panic "empty input" }
+          {
+            fn text =>
+              do length <- ! string/length text;
+              do plus_one <- ! int64/add length 1;
+              do count <- ! int64/div plus_one 4;
+              do stacks <- ! empty_stacks count;
+              let fix rows (text : String) (stacks : Stacks) : OS =
+                do stacks <- ! push_row text 1 stacks;
+                ! read_line {
+                  fn next =>
+                    ! option/fold String OS next
+                      {
+                        do stacks <- ! reverse_all stacks;
+                        ! k stacks
+                      }
+                      {
+                        fn text =>
+                          -- the numbering line has '1' where a crate would be
+                          do label <- ! char_at text 1;
+                          do numbering <- ! char_eq label '1';
+                          ! bool/if OS numbering
+                            {
+                              do stacks <- ! reverse_all stacks;
+                              ! k stacks
+                            }
+                            { ! rows text stacks }
+                      }
+                }
+              in
+              ! rows text stacks
+          }
+    }
+  that
+
+  -- Simulation -----------------------------------------------------------
+
+  -- The top `count` crates of a stack (top first) and the remaining stack.
+  let fix split_at (count : Int64) (stack : Stack) : Ret (Stack * Stack) =
+    do done <- ! int64/eq count 0;
+    ! bool/if (Ret (Stack * Stack)) done
+      {
+        do empty <- ! list/nil Char;
+        ret (empty, stack)
+      }
+      {
+        ! list/case Char (Ret (Stack * Stack)) stack
+          {
+            do empty <- ! list/nil Char;
+            ret (empty, empty)
+          }
+          {
+            fn top rest =>
+              do count <- ! int64/sub count 1;
+              do (taken, remaining) <- ! split_at count rest;
+              do taken <- ! list/cons Char top taken;
+              ret (taken, remaining)
+          }
+      }
+  that
+
+  -- Apply `update` to stack number `index`; it returns the new stack and an
+  -- extra output that is passed back along with the updated stacks.
+  let fix modify (update : Thk (Stack -> Ret (Stack * Stack))) (index : Int64) (stacks : Stacks)
+  : Ret (Stacks * Stack) =
+    ! list/case Stack (Ret (Stacks * Stack)) stacks
+      {
+        -- index out of range: nothing to change
+        do none <- ! list/nil Stack;
+        do empty <- ! list/nil Char;
+        ret (none, empty)
+      }
+      {
+        fn stack rest =>
+          do here <- ! int64/eq index 1;
+          ! bool/if (Ret (Stacks * Stack)) here
+            {
+              do (stack, output) <- ! update stack;
+              do stacks <- ! list/cons Stack stack rest;
+              ret (stacks, output)
+            }
+            {
+              do index <- ! int64/sub index 1;
+              do (rest, output) <- ! modify update index rest;
+              do stacks <- ! list/cons Stack stack rest;
+              ret (stacks, output)
+            }
+      }
+  that
+
+  -- Carry out one instruction.  With `one_at_a_time` the moved crates end up
+  -- in reverse order.
+  let ! step (one_at_a_time : Bool) (instruction : Instruction) (stacks : Stacks) : Ret Stacks =
+    match instruction
+    | +Move(count, from, to) =>
+      do (stacks, taken) <- ! modify
+        {
+          fn stack =>
+            do (taken, remaining) <- ! split_at count stack;
+            ret (remaining, taken)
+        }
+        from
+        stacks;
+      do (stacks, _) <- ! modify
+        {
+          fn target =>
+            do moved <- ! bool/if (Ret Stack) one_at_a_time { ! list/reverse Char taken } { ret taken };
+            do target <- ! list/append Char moved target;
+            do empty <- ! list/nil Char;
+            ret (target, empty)
+        }
+        to
+        stacks;
+      ret stacks
+    end
+  that
+
+  -- The top crate of every stack, as a string; '_' marks an empty stack.
+  let ! tops (stacks : Stacks) : Ret String =
+    ! list/fold Stack (Ret String) stacks
+      { ret "" }
+      {
+        fn stack rest =>
+          do rest <- ! rest;
+          do top <- ! list/head Char stack;
+          ! option/fold Char (Ret String) top
+            { ! string/append "_" rest }
+            {
+              fn c =>
+                do s <- ! char/to_string c;
+                ! string/append s rest
+            }
+      }
+  that
+
+  let fix run (part_a : Stacks) (part_b : Stacks) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          {
+            do a <- ! tops part_a;
+            do b <- ! tops part_b;
+            ! write_line a { ! write_line b { ! process/exit 0 } }
+          }
+          {
+            fn text =>
+              do instruction <- ! parse_instruction text;
+              do part_a <- ! step bool/true instruction part_a;
+              do part_b <- ! step bool/false instruction part_b;
+              ! run part_a part_b
+          }
+    }
+  that
+
+  ! parse_header {
+    fn stacks =>
+      -- skip the blank line between the drawing and the instructions
+      ! read_line { fn _ => ! run stacks stacks }
+  }
+end

@@ -1,131 +1,84 @@
-# this one is just a parsing problem
+-- Day 4, part a: count the pairs of ranges "lo-hi,lo-hi" in which one range
+-- contains the other.  This one is mostly a parsing problem.
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/Thk; /Ret) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/OS) = system that
+  let (/Bool; /bool; /option; /string; /char; /int64; /process; /read_line; /write_int; /char_at) =
+    builtin |> make_aoc
+  that
 
-data MatchAndCursor where
-| MC(Int, Int)
+  -- Read the decimal number starting at `start`, returning it together with
+  -- the position just after it.
+  let ! chomp_int (text : String) (start : Int64) : Ret (Int64 * Int64) =
+    do length <- ! string/length text;
+    let fix loop (num : Int64) (cursor : Int64) : Ret (Int64 * Int64) =
+      do at_end <- ! int64/eq cursor length;
+      ! bool/if (Ret (Int64 * Int64)) at_end
+        { ret (num, cursor) }
+        {
+          do c <- ! char_at text cursor;
+          do code <- ! char/codepoint c;
+          do after_slash <- ! int64/gt code 47;
+          do before_colon <- ! int64/lt code 58;
+          do is_digit <- ! bool/and after_slash before_colon;
+          ! bool/if (Ret (Int64 * Int64)) is_digit
+            {
+              do digit <- ! int64/sub code 48;
+              do num <- ! int64/mul num 10;
+              do num <- ! int64/add num digit;
+              do cursor <- ! int64/add cursor 1;
+              ! loop num cursor
+            }
+            { ret (num, cursor) }
+        }
+    in
+    ! loop 0 start
+  that
 
-let ifOS = {
-  fn (b' : Thunk(Ret(Bool)), thn : Thunk(OS), els: Thunk(OS)) ->
-  do b <- ! b';
-  match b
-  | True()  -> ! thn
-  | False() -> ! els
-};
+  let ! parse_line (text : String) (k : Thk (Int64 -> Int64 -> Int64 -> Int64 -> OS)) : OS =
+    do (lo0, cursor) <- ! chomp_int text 0;
+    do cursor <- ! int64/add cursor 1;
+    do (hi0, cursor) <- ! chomp_int text cursor;
+    do cursor <- ! int64/add cursor 1;
+    do (lo1, cursor) <- ! chomp_int text cursor;
+    do cursor <- ! int64/add cursor 1;
+    do (hi1, _) <- ! chomp_int text cursor;
+    ! k lo0 hi0 lo1 hi1
+  that
 
-let ifMC = {
-  fn (b' : Thunk(Ret(Bool)), thn : Thunk(Ret(MatchAndCursor)), els: Thunk(Ret(MatchAndCursor))) ->
-  do b <- ! b';
-  match b
-  | True()  -> ! thn
-  | False() -> ! els
-};
+  -- is the second range entirely inside the first?
+  let ! contains (lo0 : Int64) (hi0 : Int64) (lo1 : Int64) (hi1 : Int64) : Ret Bool =
+    do low_enough <- ! int64/le lo0 lo1;
+    do high_enough <- ! int64/ge hi0 hi1;
+    ! bool/and low_enough high_enough
+  that
 
-let and_ = {
-  fn (b1_: Thunk(Ret(Bool)), b2_: Thunk(Ret(Bool))) ->
-  do b1 <- ! b1_;
-  match b1
-  | True() -> ! b2_
-  | False() -> ret False()
-};
+  let ! either_contains (lo0 : Int64) (hi0 : Int64) (lo1 : Int64) (hi1 : Int64) : Ret Bool =
+    do first <- ! contains lo0 hi0 lo1 hi1;
+    do second <- ! contains lo1 hi1 lo0 hi0;
+    ! bool/or first second
+  that
 
-let or_ = {
-  fn (b1_: Thunk(Ret(Bool)), b2_: Thunk(Ret(Bool))) ->
-  do b1 <- ! b1_;
-  match b1
-  | True() -> ret True()
-  | False() -> ! b2_
-};
-
-let int_leq = {
-  fn (i: Int, j: Int) -> ! or_ {! int_lt i j}{! int_eq i j}
-};
-let int_geq = {
-  fn (i: Int, j: Int) -> ! or_ {! int_gt i j}{! int_eq i j}
-};
-
-# chomp_int : String -> Int -> Thunk(Int -> Int -> OS) -> OS
-let chomp_int = {
-  fn (s: String, cursor: Int) ->
-  do len <- ! str_length s;
-  let rec loop : Int -> Int -> Ret(MatchAndCursor) =
-    fn (num: Int, cursor: Int) ->
-    do oob <- ! int_eq cursor len;
-    match oob
-    | True() -> ret MC(num, cursor)
-    | False() -> (
-    do c <- ! str_index s cursor;
-    do code <- ! char_to_int c;
-    ! ifMC { ! and_ { ! int_gt code 47 } { ! int_lt code 58 } }
-    # it is an int
-    { do lsd <- ! sub code 48;
-      do num <- ! mul num 10;
-      do num <- ! add num lsd;
-      do cursor <- ! add cursor 1;
-      ! loop num cursor
+  let fix loop (seen : Int64) : OS =
+    ! read_line {
+      fn line =>
+        ! option/fold String OS line
+          { ! write_int seen { ! process/exit 0 } }
+          {
+            fn text =>
+              ! parse_line text {
+                fn lo0 hi0 lo1 hi1 =>
+                  do contained <- ! either_contains lo0 hi0 lo1 hi1;
+                  do seen <- ! bool/if (Ret Int64) contained { ! int64/add seen 1 } { ret seen };
+                  ! loop seen
+              }
+          }
     }
-    # it's not an int
-    { ret MC(num, cursor) }
-    );
-  ! loop 0 cursor
-};
+  that
 
-# if the left range is entirely contained within the right
-let contains = {
-  fn (lo0: Int, hi0: Int, lo1: Int, hi1: Int) ->
-  ! and_ { ! int_leq lo0 lo1 } { ! int_geq hi0 hi1 }
-};
-
-let either_contains = {
-  fn (lo0: Int, hi0: Int, lo1: Int, hi1: Int) ->
-  ! or_ { ! contains lo0 hi0 lo1 hi1 } { ! contains lo1 hi1 lo0 hi0 }
-};
-
-let parse_line = {
-  fn (s: String) ->
-  do mc <- ! chomp_int s 0;
-  match mc
-  | MC(lo0, cursor) -> (
-  do cursor <- ! add cursor 1;
-  do mc1 <- ! chomp_int s cursor;
-  match mc1
-  | MC(hi0, cursor) -> (
-  do cursor <- ! add cursor 1;
-  do mc <- ! chomp_int s cursor;
-  match mc
-  | MC(lo1, cursor) -> (
-  do cursor <- ! add cursor 1;
-  do mc <- ! chomp_int s cursor;
-  match mc
-  | MC(hi1, cursor) -> (
-  # a hack to make multiple args more convenient
-  fn (k : Thunk(Int -> Int -> Int -> Int -> OS)) -> ! k lo0 hi0 lo1 hi1)
-  )))
-};
-
-let write_int = {
-  fn (i: Int, done: Thunk(OS)) ->
-  do s <- ! int_to_str i;
-  ! write_line s done
-};
-
-let rec loop: Int -> OS =
-  fn (seen: Int) ->
-  ! read_line { fn (s: String) ->
-  ! ifOS { ! str_eq s "" }
-  { ! write_int seen  { ! exit 0 } }
-  { ! parse_line s { fn (lo0: Int, hi0: Int, lo1: Int, hi1: Int) ->
-    do b <- ! either_contains lo0 hi0 lo1 hi1;
-    do seen <- (match b | True() -> ! add seen 1 | False() -> ret seen);
-    ! loop seen
-  } }
-};
-
-! loop 0
-# ! parse_line "57-93,9-57" {
-#   fn (lo0: Int, hi0: Int, lo1: Int, hi1: Int) ->
-# ! write_int lo0 {
-# ! write_int hi0 {
-# ! write_int lo1 {
-# ! write_int hi1 {
-# ! exit 0
-# }}}}
-# }
+  ! loop 0
+end

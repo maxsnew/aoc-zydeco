@@ -1,0 +1,98 @@
+-- Day 6: find the end of the first run of distinct characters in the
+-- datastream.  Part a looks for 4 distinct characters, part b for 14; both
+-- answers are printed, part a first.
+begin
+  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  let make_aoc = @(import("../../lib/aoc.zy")) that
+  let (/Ret) = core that
+  let (/String) = representations/string that
+  let (/Int64) = representations/i64 that
+  let (/Char) = representations/char that
+  let (/OS) = system that
+  let (/Bool; /List; /bool; /option; /list; /string; /int64; /process; /read_line; /write_int; /char_eq; /char_at) =
+    builtin |> make_aoc
+  that
+
+  let fix not_in (c : Char) (cs : List Char) : Ret Bool =
+    ! list/case Char (Ret Bool) cs
+      { ret bool/true }
+      {
+        fn c' rest =>
+          do same <- ! char_eq c c';
+          ! bool/if (Ret Bool) same { ret bool/false } { ! not_in c rest }
+      }
+  that
+
+  let fix all_different (cs : List Char) : Ret Bool =
+    ! list/case Char (Ret Bool) cs
+      { ret bool/true }
+      {
+        fn c rest =>
+          do fresh <- ! not_in c rest;
+          ! bool/if (Ret Bool) fresh { ! all_different rest } { ret bool/false }
+      }
+  that
+
+  -- The window keeps its newest character first.  Sliding it adds the new
+  -- character at the front and drops the oldest at the back.
+  let fix slide (new : Char) (window : List Char) : Ret (List Char) =
+    ! list/case Char (Ret (List Char)) window
+      { ! list/nil Char }
+      {
+        fn old rest =>
+          do rest <- ! slide old rest;
+          ! list/cons Char new rest
+      }
+  that
+
+  -- The first `size` characters of `text` as a window, newest first.
+  let fix initial_window (text : String) (index : Int64) (size : Int64) (window : List Char)
+  : Ret (List Char) =
+    do done <- ! int64/eq index size;
+    ! bool/if (Ret (List Char)) done
+      { ret window }
+      {
+        do c <- ! char_at text index;
+        do window <- ! list/cons Char c window;
+        do index <- ! int64/add index 1;
+        ! initial_window text index size window
+      }
+  that
+
+  -- How many characters have been read when the first `size` consecutive
+  -- characters are all different; -1 if that never happens.
+  let ! find (text : String) (size : Int64) : Ret Int64 =
+    do length <- ! string/length text;
+    let fix loop (index : Int64) (window : List Char) : Ret Int64 =
+      do distinct <- ! all_different window;
+      ! bool/if (Ret Int64) distinct
+        { ret index }
+        {
+          do exhausted <- ! int64/eq index length;
+          ! bool/if (Ret Int64) exhausted
+            { ret -1 }
+            {
+              do c <- ! char_at text index;
+              do window <- ! slide c window;
+              do index <- ! int64/add index 1;
+              ! loop index window
+            }
+        }
+    in
+    do empty <- ! list/nil Char;
+    do window <- ! initial_window text 0 size empty;
+    ! loop size window
+  that
+
+  ! read_line {
+    fn line =>
+      ! option/fold String OS line
+        { ! process/panic "empty input" }
+        {
+          fn text =>
+            do a <- ! find text 4;
+            do b <- ! find text 14;
+            ! write_int a { ! write_int b { ! process/exit 0 } }
+        }
+  }
+end

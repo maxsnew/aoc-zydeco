@@ -1,0 +1,3 @@
+-- The host contract of the Zydeco compiler checkout, which this repository
+-- expects as a sibling directory named `impl`.
+@(import("../../impl/lib/std/builtin.zy"))
