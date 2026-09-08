@@ -1,13 +1,8 @@
 -- Day 3, part b: rucksacks come in groups of three lines; sum the priorities
 -- of the item type common to all three.
 begin
-  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  param (/Thk; /Ret; /String; /Int64; /Char; /OS; builtin) : @(import("../../lib/builtin.zy")) that
   let make_aoc = @(import("../../lib/aoc.zy")) that
-  let (/Thk; /Ret) = core that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/Char) = representations/char that
-  let (/OS) = system that
   let (/Bool; /bool; /option; /string; /char; /int64; /process; /read_line; /write_int; /char_eq; /char_at) =
     builtin |> make_aoc
   that

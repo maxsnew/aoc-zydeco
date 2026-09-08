@@ -1,11 +1,7 @@
 -- Day 1, part b: the calories carried by the three best-supplied elves together.
 begin
-  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  param (/Ret; /String; /Int64; /OS; builtin) : @(import("../../lib/builtin.zy")) that
   let make_aoc = @(import("../../lib/aoc.zy")) that
-  let (/Ret) = core that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/OS) = system that
   let (/List; /bool; /option; /list; /string; /int64; /process; /read_line; /write_int; /expect_int) =
     builtin |> make_aoc
   that

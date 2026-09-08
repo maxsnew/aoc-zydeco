@@ -1,11 +1,8 @@
 -- Day 1, part a: the most calories carried by a single elf.
 -- Each elf's items are listed one per line; elves are separated by blank lines.
 begin
-  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  param (/String; /Int64; /OS; builtin) : @(import("../../lib/builtin.zy")) that
   let make_aoc = @(import("../../lib/aoc.zy")) that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/OS) = system that
   let (/bool; /option; /string; /int64; /process; /read_line; /write_int; /expect_int) =
     builtin |> make_aoc
   that

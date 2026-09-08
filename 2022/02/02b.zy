@@ -1,13 +1,8 @@
 -- Day 2, part b: total score when the second column names the required
 -- outcome (X lose, Y draw, Z win) instead of our move.
 begin
-  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  param (/Thk; /Ret; /Unit; /String; /Int64; /Char; /OS; builtin) : @(import("../../lib/builtin.zy")) that
   let make_aoc = @(import("../../lib/aoc.zy")) that
-  let (/Thk; /Ret; /Unit) = core that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/Char) = representations/char that
-  let (/OS) = system that
   let (/bool; /option; /int64; /process; /read_line; /write_int; /char_eq; /char_at) =
     builtin |> make_aoc
   that

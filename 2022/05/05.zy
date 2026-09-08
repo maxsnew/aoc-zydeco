@@ -6,13 +6,8 @@
 -- as a whole.  Both simulations run side by side on the single pass over
 -- the input, and the crates on top of each stack are printed, part a first.
 begin
-  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  param (/Thk; /Ret; /String; /Int64; /Char; /OS; builtin) : @(import("../../lib/builtin.zy")) that
   let make_aoc = @(import("../../lib/aoc.zy")) that
-  let (/Thk; /Ret) = core that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/Char) = representations/char that
-  let (/OS) = system that
   let (
     /Bool; /List; /bool; /option; /list; /string; /char; /int64; /process;
     /read_line; /write_line; /char_eq; /char_at

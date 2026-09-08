@@ -5,13 +5,8 @@
 -- conveniences.  Standard input is treated as a stream of lines whose end is
 -- an explicit `None`, so no sentinel empty line is needed.
 begin
-  param val (/core; /representations; /system; builtin) : @(import("builtin.zy")) that
+  param val (/VType; /CType; /Thk; /Ret; /String; /Int64; /Char; /OS; builtin) : @(import("builtin.zy")) that
   let make_std = @(import("../../impl/lib/std/std.zy")) that
-  let (/VType; /CType; /Thk; /Ret) = core that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/Char) = representations/char that
-  let (/OS) = system that
   let std = builtin |> make_std that
   let (
     /Bool; /List; /Option; /IoError;

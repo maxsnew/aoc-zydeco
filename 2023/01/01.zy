@@ -1,13 +1,8 @@
 -- 2023, day 1, part a: each line's calibration value is its first digit
 -- followed by its last digit; print the sum.
 begin
-  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  param (/Ret; /String; /Int64; /Char; /OS; builtin) : @(import("../../lib/builtin.zy")) that
   let make_aoc = @(import("../../lib/aoc.zy")) that
-  let (/Ret) = core that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/Char) = representations/char that
-  let (/OS) = system that
   let (/List; /bool; /option; /list; /string; /char; /int64; /process; /read_line; /write_int) =
     builtin |> make_aoc
   that

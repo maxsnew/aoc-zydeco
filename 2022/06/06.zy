@@ -2,13 +2,8 @@
 -- datastream.  Part a looks for 4 distinct characters, part b for 14; both
 -- answers are printed, part a first.
 begin
-  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  param (/Ret; /String; /Int64; /Char; /OS; builtin) : @(import("../../lib/builtin.zy")) that
   let make_aoc = @(import("../../lib/aoc.zy")) that
-  let (/Ret) = core that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/Char) = representations/char that
-  let (/OS) = system that
   let (/Bool; /List; /bool; /option; /list; /string; /int64; /process; /read_line; /write_int; /char_eq; /char_at) =
     builtin |> make_aoc
   that

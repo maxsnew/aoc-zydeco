@@ -1,12 +1,8 @@
 -- Day 4, part a: count the pairs of ranges "lo-hi,lo-hi" in which one range
 -- contains the other.  This one is mostly a parsing problem.
 begin
-  param (/core; /representations; /system; builtin) : @(import("../../lib/builtin.zy")) that
+  param (/Thk; /Ret; /String; /Int64; /OS; builtin) : @(import("../../lib/builtin.zy")) that
   let make_aoc = @(import("../../lib/aoc.zy")) that
-  let (/Thk; /Ret) = core that
-  let (/String) = representations/string that
-  let (/Int64) = representations/i64 that
-  let (/OS) = system that
   let (/Bool; /bool; /option; /string; /char; /int64; /process; /read_line; /write_int; /char_at) =
     builtin |> make_aoc
   that
